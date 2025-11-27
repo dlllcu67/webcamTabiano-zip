@@ -35,7 +35,7 @@ jobs:
           
           # Crea un file ZIP che contiene tutte le immagini del mese
           #zip -r "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/"
-          zip -ur "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/*.jpg"
+          zip -u -r "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/*.jpg"
 
       - name: Commit & Push file ZIP
         run: |
