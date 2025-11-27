@@ -1,0 +1,48 @@
+name: Save Webcam Image
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # Ogni 30 minuti
+  workflow_dispatch:  # Permette di avviare manualmente il workflow
+
+permissions:
+  contents: write  # Permette di scrivere nel repository
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scarica immagine webcam
+        run: |
+          mkdir -p webcam
+          ts=$(date +"%Y-%m-%d_%H-%M")  # Timestamp per il nome del file
+          curl -L -o "webcam/webcam_${ts}.jpg" "http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg"
+
+      - name: Crea file ZIP mensile
+        run: |
+          # Estrai mese e anno corrente
+          month=$(date +"%Y-%m")
+          
+          # Crea una directory temporanea per il mese corrente
+          mkdir -p "webcam_zip/$month"
+          
+          # Muovi tutte le immagini scaricate nella directory mensile
+          mv webcam/*.jpg "webcam_zip/$month/"
+          
+          # Crea un file ZIP che contiene tutte le immagini del mese
+          #zip -r "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/"
+          zip -ur "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/*.jpg"
+
+      - name: Commit & Push file ZIP
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          
+          # Aggiungi il file ZIP e committa le modifiche
+          git add "webcam_zip/"
+          git commit -m "Nuove immagini webcam per ${month}" || exit 0  # Commit solo se ci sono cambiamenti
+          git push
