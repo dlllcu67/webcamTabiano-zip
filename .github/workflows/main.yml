@@ -2,11 +2,11 @@ name: Save Webcam Image
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Ogni 30 minuti
-  workflow_dispatch:  # Permette di avviare manualmente il workflow
+    - cron: "*/30 * * * *"  # Esegui ogni mezz'ora
+  workflow_dispatch:  # Esegui manualmente
 
 permissions:
-  contents: write  # Permette di scrivere nel repository
+  contents: write
 
 jobs:
   download:
@@ -19,37 +19,26 @@ jobs:
       - name: Scarica immagine webcam
         run: |
           mkdir -p webcam
-          ts=$(date +"%Y-%m-%d_%H-%M")  # Timestamp per il nome del file
-          curl -L -o "webcam/webcam_${ts}.jpg" "http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg" || echo "Errore nel download dell'immagine webcam!"
-
-      - name: Crea file ZIP mensile
+          ts=$(date +"%Y-%m-%d_%H-%M")
+          img_url="http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg"
+          img_path="webcam/webcam_${ts}.jpg"
+          curl -L -o "$img_path" "$img_url"
+          
+      - name: Aggiungi immagine al file zip
         run: |
-          # Estrai mese e anno corrente
-          month=$(date +"%Y-%m")
-          
-          # Crea una directory temporanea per il mese corrente
-          mkdir -p "webcam_zip/$month"
-          
-          # Muovi tutte le immagini .jpg nella directory mensile solo se esistono
-          if ls webcam/*.jpg 1> /dev/null 2>&1; then
-            mv webcam/*.jpg "webcam_zip/$month/"
+          zip_file="webcam_images.zip"
+          # Se il file zip non esiste, crealo
+          if [ ! -f "$zip_file" ]; then
+            zip -r "$zip_file" webcam/
           else
-            echo "Nessuna immagine da spostare nella directory webcam"
-          fi
-          
-          # Verifica se ci sono immagini nella directory mensile prima di fare il zip
-          if ls "webcam_zip/$month/*.jpg" 1> /dev/null 2>&1; then
-            zip -u -r "webcam_zip/$month/webcam_images_${month}.zip" "webcam_zip/$month/*.jpg"
-          else
-            echo "Nessuna immagine trovata nella directory mensile per il mese ${month}!"
+            # Aggiungi nuove immagini al file zip
+            zip -r "$zip_file" webcam/* -x "*.zip"
           fi
 
-      - name: Commit & Push file ZIP
+      - name: Commit & Push zip
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          
-          # Aggiungi il file ZIP e committa le modifiche
-          git add "webcam_zip/"
-          git commit -m "Nuove immagini webcam per ${month}" || echo "Nessun cambiamento da commettere"
+          git add "$zip_file"
+          git commit -m "Aggiornamento delle immagini webcam al $(date)" || exit 0
           git push
