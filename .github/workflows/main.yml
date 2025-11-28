@@ -22,17 +22,22 @@ jobs:
           ts=$(date +"%Y-%m-%d_%H-%M")
           img_url="http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg"
           img_path="webcam/webcam_${ts}.jpg"
-          curl -L -o "$img_path" "$img_url"
-          
+          curl -L -o "$img_path" "$img_url" || { echo "Errore nel download dell'immagine"; exit 1; }
+
       - name: Aggiungi immagine al file zip
         run: |
           zip_file="webcam_images.zip"
-          # Se il file zip non esiste, crealo
-          if [ ! -f "$zip_file" ]; then
-            zip -r "$zip_file" webcam/
+          # Verifica se la cartella webcam contiene immagini
+          if [ "$(ls -A webcam)" ]; then
+            # Se il file zip non esiste, crealo
+            if [ ! -f "$zip_file" ]; then
+              zip -r "$zip_file" webcam/
+            else
+              # Aggiungi nuove immagini al file zip
+              zip -r "$zip_file" webcam/* -x "*.zip"
+            fi
           else
-            # Aggiungi nuove immagini al file zip
-            zip -r "$zip_file" webcam/* -x "*.zip"
+            echo "Nessuna immagine da aggiungere."
           fi
 
       - name: Commit & Push zip
@@ -40,5 +45,11 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
           git add "$zip_file"
-          git commit -m "Aggiornamento delle immagini webcam al $(date)" || exit 0
-          git push
+          
+          # Verifica se ci sono modifiche da commettere
+          if git diff --quiet; then
+            echo "Nessuna modifica da commettere."
+          else
+            git commit -m "Aggiornamento delle immagini webcam al $(date)"
+            git push
+          fi
