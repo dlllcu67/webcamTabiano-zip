@@ -2,8 +2,8 @@ name: Save Webcam Image
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Esegui ogni mezz'ora
-  workflow_dispatch:  # Esegui manualmente
+    - cron: "*/30 * * * *"   # Ogni 30 minuti
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,48 +22,52 @@ jobs:
           ts=$(date +"%Y-%m-%d_%H-%M")
           img_url="http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg"
           img_path="webcam/webcam_${ts}.jpg"
-          echo "Scaricando immagine da $img_url"
-          curl -L -o "$img_path" "$img_url" || { echo "Errore nel download dell'immagine"; exit 1; }
-          echo "Immagine scaricata: $img_path"
 
-      - name: Aggiungi immagine al file zip
+          echo "Scaricando immagine da $img_url"
+          curl -L -o "$img_path" "$img_url" || { echo "Errore nel download"; exit 1; }
+          echo "Immagine salvata in $img_path"
+
+      - name: Crea o aggiorna file ZIP mensile
         run: |
-          # Usa il mese corrente per il nome del file zip
           zip_file="webcam_images_$(date +"%Y-%m").zip"
+          echo "zip_file=$zip_file" >> $GITHUB_ENV   # ↩️ rende il nome disponibile allo step successivo
+
           echo "Verificando la cartella webcam..."
-          # Verifica se la cartella webcam contiene immagini
           if [ "$(ls -A webcam)" ]; then
-            echo "Immagini trovate, aggiungendo al file zip..."
-            # Se il file zip non esiste, crealo
+            echo "Immagini trovate. Aggiorno: $zip_file"
+
+            # crea il file ZIP se non esiste
             if [ ! -f "$zip_file" ]; then
               zip -r "$zip_file" webcam/
             else
-              # Aggiungi nuove immagini al file zip
-              zip -r "$zip_file" webcam/* -x "*.zip"
+              # aggiunge solo nuovi file evitando di includere altri zip
+              zip -u "$zip_file" webcam/*.jpg
             fi
           else
-            echo "Nessuna immagine da aggiungere."
+            echo "Nessuna immagine trovata da aggiungere."
           fi
 
-      - name: Commit & Push zip
+      - name: Commit & Push ZIP aggiornato
         run: |
-          echo "Configurando Git..."
+          echo "Configurazione Git..."
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          
-          # Aggiungi il file zip se esiste
-          if [ -f "$zip_file" ]; then
-            git add "$zip_file"
-          else
-            echo "Nessun file da aggiungere."
+
+          zip_file="$zip_file"   # recupera dal GITHUB_ENV
+
+          if [ ! -f "$zip_file" ]; then
+            echo "Nessun file ZIP da aggiungere."
             exit 0
           fi
 
-          # Verifica se ci sono modifiche da commettere
-          if git diff --quiet; then
+          git add "$zip_file"
+
+          # controlla se ci sono cambiamenti da committare
+          if git diff --cached --quiet; then
             echo "Nessuna modifica da commettere."
+            exit 0
           else
-            echo "Modifiche trovate, commettendo e pushando..."
-            git commit -m "Aggiornamento delle immagini webcam per il mese di $(date +"%Y-%m")"
+            echo "Modifiche trovate. Eseguo commit e push..."
+            git commit -m "Aggiornamento immagini webcam - mese $(date +"%Y-%m")"
             git push
           fi
