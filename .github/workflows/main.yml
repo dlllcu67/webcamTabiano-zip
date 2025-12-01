@@ -28,7 +28,8 @@ jobs:
 
       - name: Aggiungi immagine al file zip
         run: |
-          zip_file="webcam_images.zip"
+          # Usa il mese corrente per il nome del file zip
+          zip_file="webcam_images_$(date +"%Y-%m").zip"
           echo "Verificando la cartella webcam..."
           # Verifica se la cartella webcam contiene immagini
           if [ "$(ls -A webcam)" ]; then
@@ -63,6 +64,6 @@ jobs:
             echo "Nessuna modifica da commettere."
           else
             echo "Modifiche trovate, commettendo e pushando..."
-            git commit -m "Aggiornamento delle immagini webcam al $(date)"
+            git commit -m "Aggiornamento delle immagini webcam per il mese di $(date +"%Y-%m")"
             git push
           fi
