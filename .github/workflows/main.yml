@@ -18,56 +18,47 @@ jobs:
 
       - name: Scarica immagine webcam
         run: |
+          set -e
           mkdir -p webcam
+
           ts=$(date +"%Y-%m-%d_%H-%M")
           img_url="http://www.parkhotelfantoni.it/Webcam/webcamnew.jpg"
           img_path="webcam/webcam_${ts}.jpg"
 
           echo "Scaricando immagine da $img_url"
-          curl -L -o "$img_path" "$img_url" || { echo "Errore nel download"; exit 1; }
+          curl -L -o "$img_path" "$img_url"
           echo "Immagine salvata in $img_path"
 
-      - name: Crea o aggiorna file ZIP mensile
+      - name: Crea o aggiorna ZIP mensile (max 100MB)
         run: |
-          zip_file="webcam_images_$(date +"%Y-%m").zip"
-          echo "zip_file=$zip_file" >> $GITHUB_ENV   # ↩️ rende il nome disponibile allo step successivo
+          set -e
 
-          echo "Verificando la cartella webcam..."
-          if [ "$(ls -A webcam)" ]; then
-            echo "Immagini trovate. Aggiorno: $zip_file"
+          MONTH=$(date +"%Y-%m")
+          BASE_NAME="webcam_images_${MONTH}"
+          MAX_SIZE=$((95 * 1024 * 1024)) # 95 MB (margine sicurezza)
 
-            # crea il file ZIP se non esiste
-            if [ ! -f "$zip_file" ]; then
-              zip -r "$zip_file" webcam/
+          # trova ultimo ZIP del mese
+          LAST_PART=$(ls ${BASE_NAME}_part*.zip 2>/dev/null | sort | tail -n 1)
+
+          if [ -z "$LAST_PART" ]; then
+            PART=1
+            ZIP_FILE="${BASE_NAME}_part${PART}.zip"
+            echo "Creo nuovo ZIP: $ZIP_FILE"
+            zip -r "$ZIP_FILE" webcam/
+          else
+            ZIP_SIZE=$(stat -c%s "$LAST_PART")
+
+            if [ "$ZIP_SIZE" -ge "$MAX_SIZE" ]; then
+              PART=$(echo "$LAST_PART" | sed -E 's/.*_part([0-9]+).zip/\1/')
+              PART=$((PART + 1))
+              ZIP_FILE="${BASE_NAME}_part${PART}.zip"
+              echo "ZIP pieno. Creo: $ZIP_FILE"
+              zip -r "$ZIP_FILE" webcam/
             else
-              # aggiunge solo nuovi file evitando di includere altri zip
-              zip -u "$zip_file" webcam/*.jpg
+              ZIP_FILE="$LAST_PART"
+              echo "Aggiorno ZIP esistente: $ZIP_FILE"
+              zip -u "$ZIP_FILE" webcam/*.jpg
             fi
-          else
-            echo "Nessuna immagine trovata da aggiungere."
           fi
 
-      - name: Commit & Push ZIP aggiornato
-        run: |
-          echo "Configurazione Git..."
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-
-          zip_file="$zip_file"   # recupera dal GITHUB_ENV
-
-          if [ ! -f "$zip_file" ]; then
-            echo "Nessun file ZIP da aggiungere."
-            exit 0
-          fi
-
-          git add "$zip_file"
-
-          # controlla se ci sono cambiamenti da committare
-          if git diff --cached --quiet; then
-            echo "Nessuna modifica da commettere."
-            exit 0
-          else
-            echo "Modifiche trovate. Eseguo commit e push..."
-            git commit -m "Aggiornamento immagini webcam - mese $(date +"%Y-%m")"
-            git push
-          fi
+          echo "
