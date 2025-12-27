@@ -2,7 +2,7 @@ name: Save Webcam Image
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # Ogni 30 minuti
+    - cron: "*/30 * * * *" # Ogni 30 minuti
   workflow_dispatch:
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
 
           MONTH=$(date +"%Y-%m")
           BASE_NAME="webcam_images_${MONTH}"
-          MAX_SIZE=$((95 * 1024 * 1024)) # 95 MB (margine sicurezza)
+          MAX_SIZE=$((90 * 1024 * 1024)) # 90 MB di margine
 
           # trova ultimo ZIP del mese
           LAST_PART=$(ls ${BASE_NAME}_part*.zip 2>/dev/null | sort | tail -n 1)
@@ -61,4 +61,13 @@ jobs:
             fi
           fi
 
-          echo "
+          echo "Operazione completata: $ZIP_FILE"
+
+      - name: Commit & push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "Aggiornamento immagini webcam $(date +"%Y-%m-%d %H:%M")" || echo "Nessuna modifica da commitare"
+          git push
