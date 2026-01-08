@@ -2,7 +2,7 @@ name: Save Webcam Image
 
 on:
   schedule:
-    - cron: "*/30 * * * *" # Ogni 30 minuti
+    - cron: "*/30 * * * *" # Ogni 30 minuti (UTC)
   workflow_dispatch:
 
 permissions:
@@ -16,6 +16,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Imposta fuso orario italiano
+        run: |
+          echo "TZ=Europe/Rome" >> $GITHUB_ENV
+
       - name: Scarica immagine webcam
         run: |
           set -e
@@ -26,10 +30,10 @@ jobs:
           img_path="webcam/webcam_${ts}.jpg"
 
           echo "Scaricando immagine da $img_url"
-          curl -L -o "$img_path" "$img_url"
+          curl -L --fail -o "$img_path" "$img_url"
           echo "Immagine salvata in $img_path"
 
-      - name: Crea o aggiorna ZIP mensile (max 100MB)
+      - name: Crea o aggiorna ZIP mensile (max 100MB) e pulizia
         run: |
           set -e
 
@@ -37,7 +41,13 @@ jobs:
           BASE_NAME="webcam_images_${MONTH}"
           MAX_SIZE=$((80 * 1024 * 1024)) # 80 MB di margine
 
-          # trova ultimo ZIP del mese
+          # Verifica se ci sono immagini da zippare
+          if ! ls webcam/*.jpg >/dev/null 2>&1; then
+            echo "Nessuna immagine da zippare"
+            exit 0
+          fi
+
+          # Trova ultimo ZIP del mese
           LAST_PART=$(ls ${BASE_NAME}_part*.zip 2>/dev/null | sort | tail -n 1)
 
           if [ -z "$LAST_PART" ]; then
@@ -60,6 +70,9 @@ jobs:
               zip -u "$ZIP_FILE" webcam/*.jpg
             fi
           fi
+
+          echo "Pulizia immagini webcam..."
+          rm -f webcam/*.jpg
 
           echo "Operazione completata: $ZIP_FILE"
 
